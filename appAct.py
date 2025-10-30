@@ -108,8 +108,8 @@ def parse_money(x) -> float:
 # ===== NUEVO: Construir dirección para pagaré =====
 def build_address(row):
     calle   = pick_col(row, ["Calle","Domicilio","Direccion"], contains=["calle"])
-    noext   = pick_col(row, ["NoExt","Num Ext","Exterior"], contains=["ext"])
-    noint   = pick_col(row, ["NoInt","Num Int","Interior"], contains=["int"])
+    noext   = pick_col(row, ["NoExt","Num Ext","Exterior","Número exterior", "número exterior"], contains=["ext"])
+    noint   = pick_col(row, ["NoInt","Num Int","Interior","Número interior", "número interior"], contains=["int"])
     col     = pick_col(row, ["Colonia"])
     loc     = pick_col(row, ["Localidad","Poblacion"])
     mun     = pick_col(row, ["Municipio","Sucursal"], contains=["mun"])
