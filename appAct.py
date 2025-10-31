@@ -571,95 +571,100 @@ with tab2:
             st.info("No se detectaron productos 'KGRUPAL' en tu Excel.")
         else:
             st.success(f"Detectados {len(grupos)} grupo(s) KGRUPAL en tu archivo.")
-            for idx, (ini, fin) in enumerate(grupos, start=1):
-                grupo_df = df.iloc[ini:fin+1]
-                primera = grupo_df.iloc[0]
-                nombre_inicial = pick_col(primera, ["Grupo","Nombre del Grupo","Nombre grupo"]) or f"GRUPO_{idx}"
 
-                # Permitir editar el nombre del grupo antes de generar el convenio
-                st.divider()
-                nombre_grupo = st.text_input(f"Nombre del Grupo (Grupo {idx})", value=nombre_inicial, key=f"grupo_nombre_{idx}")
-                st.markdown(f"### 🧾 Grupo {idx}: **{nombre_grupo}** ({ini} → {fin})")
-                st.dataframe(grupo_df, hide_index=True, use_container_width=True)
+            # Mostrar selector para elegir un único grupo a procesar
+            opciones = [f"Grupo {i+1} (filas {start+1}-{end+1})" for i,(start,end) in enumerate(grupos)]
+            sel = st.selectbox("Selecciona un grupo para procesar:", opciones, key="select_grupo_kgrupal")
+            gidx = opciones.index(sel)
+            ini, fin = grupos[gidx]
+            grupo_df = df.iloc[ini:fin+1]
+            primera = grupo_df.iloc[0]
+            nombre_inicial = pick_col(primera, ["Grupo","Nombre del Grupo","Nombre grupo"]) or f"GRUPO_{gidx+1}"
 
-                # Campos extra para convenio
-                datos_grupo = {
-                    "nombre_grupo": nombre_grupo,
-                    "fecha_firma": st.text_input(f"Fecha firma grupo {nombre_grupo}", value=fecha_hoy_es(), key=f"fecha_{idx}"),
-                    "presidenta": st.text_input(f"Presidenta grupo {nombre_grupo}", key=f"pres_{idx}"),
-                    "secretaria": st.text_input(f"Secretaria grupo {nombre_grupo}", key=f"secr_{idx}"),
-                    "tesorera": st.text_input(f"Tesorera grupo {nombre_grupo}", key=f"tes_{idx}")
-                }
+            # Permitir editar el nombre del grupo antes de generar el convenio
+            st.divider()
+            nombre_grupo = st.text_input(f"Nombre del Grupo (Grupo {gidx+1})", value=nombre_inicial, key=f"grupo_nombre_{gidx}")
+            st.markdown(f"### 🧾 Grupo {gidx+1}: **{nombre_grupo}** ({ini} → {fin})")
+            st.dataframe(grupo_df, hide_index=True, use_container_width=True)
 
-                gen_pdf_conv = st.checkbox(f"📄 Generar PDF (grupo {nombre_grupo})", value=False, key=f"pdf_conv_{idx}")
+            # Campos extra para convenio
+            datos_grupo = {
+                "nombre_grupo": nombre_grupo,
+                "fecha_firma": st.text_input(f"Fecha firma grupo {nombre_grupo}", value=fecha_hoy_es(), key=f"fecha_{gidx}"),
+                "presidenta": st.text_input(f"Presidenta grupo {nombre_grupo}", key=f"pres_{gidx}"),
+                "secretaria": st.text_input(f"Secretaria grupo {nombre_grupo}", key=f"secr_{gidx}"),
+                "tesorera": st.text_input(f"Tesorera grupo {nombre_grupo}", key=f"tes_{gidx}")
+            }
 
-                if st.button(f"🚀 Generar Convenio y Pagarés (Grupo {nombre_grupo})"):
-                    with st.spinner(f"Generando documentos para {nombre_grupo}..."):
-                        try:
-                            tmp_dir = Path(tempfile.mkdtemp(prefix=f"grupo_{idx}_"))
-                            errors = []
+            gen_pdf_conv = st.checkbox(f"📄 Generar PDF (grupo {nombre_grupo})", value=False, key=f"pdf_conv_{gidx}")
 
-                            # ====== Generar pagarés individuales del grupo ======
-                            for _, row in grupo_df.iterrows():
-                                ctx = row_to_context(row)
+            if st.button(f"🚀 Generar Convenio y Pagarés (Grupo {nombre_grupo})", key=f"btn_generar_grupo_{gidx}"):
+                with st.spinner(f"Generando documentos para {nombre_grupo}..."):
+                    try:
+                        tmp_dir = Path(tempfile.mkdtemp(prefix=f"grupo_{gidx}_"))
+                        errors = []
 
-                                tpl_path = PAGARE_UNICO
-                                if not tpl_path.exists():
-                                    errors.append(f"No se encontró la plantilla única de pagaré para {ctx.get('Nombre','')}")
-                                    continue
-                                try:
-                                    docx_bytes = render_docx(tpl_path, ctx)
-                                    fname = f"{safe_name(ctx.get('Folio',''))}_{safe_name(ctx.get('Nombre',''))}.docx"
-                                    (tmp_dir / fname).write_bytes(docx_bytes)
+                        # ====== Generar pagarés individuales del grupo ======
+                        for _, row in grupo_df.iterrows():
+                            ctx = row_to_context(row)
 
-                                    if gen_pdf_conv:
-                                        pdf_bytes = docx_bytes_to_pdf_bytes(docx_bytes)
-                                        if pdf_bytes:
-                                            (tmp_dir / Path(fname).with_suffix(".pdf")).write_bytes(pdf_bytes)
-                                except Exception as e:
-                                    errors.append(f"Error renderizando pagaré {ctx.get('Folio','')} - {e}")
+                            tpl_path = PAGARE_UNICO
+                            if not tpl_path.exists():
+                                errors.append(f"No se encontró la plantilla única de pagaré para {ctx.get('Nombre','')}")
+                                continue
+                            try:
+                                docx_bytes = render_docx(tpl_path, ctx)
+                                fname = f"{safe_name(ctx.get('Folio',''))}_{safe_name(ctx.get('Nombre',''))}.docx"
+                                (tmp_dir / fname).write_bytes(docx_bytes)
 
-                            # ====== Generar convenio grupal ======
-                            ctx_conv = crear_contexto_grupal(grupo_df, datos_grupo)
+                                if gen_pdf_conv:
+                                    pdf_bytes = docx_bytes_to_pdf_bytes(docx_bytes)
+                                    if pdf_bytes:
+                                        (tmp_dir / Path(fname).with_suffix(".pdf")).write_bytes(pdf_bytes)
+                            except Exception as e:
+                                errors.append(f"Error renderizando pagaré {ctx.get('Folio','')} - {e}")
 
-                            tpl_conv = TEMPLATE_CONVENIO
-                            if not tpl_conv.exists():
-                                st.error("❌ No se encontró la plantilla del convenio grupal.")
-                                st.stop()
+                        # ====== Generar convenio grupal ======
+                        ctx_conv = crear_contexto_grupal(grupo_df, datos_grupo)
 
-                            docx_conv_bytes = render_convenio_con_imagenes(tpl_conv, ctx_conv)
-                            conv_name = f"CONVENIO_{safe_name(nombre_grupo)}.docx"
-                            (tmp_dir / conv_name).write_bytes(docx_conv_bytes)
+                        tpl_conv = TEMPLATE_CONVENIO
+                        if not tpl_conv.exists():
+                            st.error("❌ No se encontró la plantilla del convenio grupal.")
+                            st.stop()
 
-                            if gen_pdf_conv:
-                                pdf_conv_bytes = docx_bytes_to_pdf_bytes(docx_conv_bytes)
-                                if pdf_conv_bytes:
-                                    (tmp_dir / Path(conv_name).with_suffix(".pdf")).write_bytes(pdf_conv_bytes)
+                        docx_conv_bytes = render_convenio_con_imagenes(tpl_conv, ctx_conv)
+                        conv_name = f"CONVENIO_{safe_name(nombre_grupo)}.docx"
+                        (tmp_dir / conv_name).write_bytes(docx_conv_bytes)
 
-                            # ====== Empaquetar ZIP ======
-                            zip_buffer = io.BytesIO()
-                            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-                                for f in tmp_dir.glob("**/*"):
-                                    if f.is_file():
-                                        zf.write(f, arcname=f.name)
-                            zip_buffer.seek(0)
+                        if gen_pdf_conv:
+                            pdf_conv_bytes = docx_bytes_to_pdf_bytes(docx_conv_bytes)
+                            if pdf_conv_bytes:
+                                (tmp_dir / Path(conv_name).with_suffix(".pdf")).write_bytes(pdf_conv_bytes)
 
-                            st.success(f"✅ Convenio y pagarés generados para {nombre_grupo}")
-                            st.download_button(
-                                "⬇️ Descargar ZIP del grupo",
-                                zip_buffer,
-                                file_name=f"{safe_name(nombre_grupo)}.zip",
-                                mime="application/zip",
-                                key=f"zip_{idx}"
-                            )
+                        # ====== Empaquetar ZIP ======
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                            for f in tmp_dir.glob("**/*"):
+                                if f.is_file():
+                                    zf.write(f, arcname=f.name)
+                        zip_buffer.seek(0)
 
-                            if errors:
-                                st.warning("Avisos:")
-                                for e in errors:
-                                    st.text(e)
+                        st.success(f"✅ Convenio y pagarés generados para {nombre_grupo}")
+                        st.download_button(
+                            "⬇️ Descargar ZIP del grupo",
+                            zip_buffer,
+                            file_name=f"{safe_name(nombre_grupo)}.zip",
+                            mime="application/zip",
+                            key=f"zip_{gidx}"
+                        )
 
-                        except Exception as e:
-                            st.exception(e)
+                        if errors:
+                            st.warning("Avisos:")
+                            for e in errors:
+                                st.text(e)
+
+                    except Exception as e:
+                        st.exception(e)
 
 # ============ FIN DEL ARCHIVO ============
 st.caption("Versión final 2025-10 - Plantilla única Pagaré + Dirección desde Excel | Kapitaliza 🧾")
