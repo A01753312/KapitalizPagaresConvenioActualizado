@@ -574,9 +574,11 @@ with tab2:
             for idx, (ini, fin) in enumerate(grupos, start=1):
                 grupo_df = df.iloc[ini:fin+1]
                 primera = grupo_df.iloc[0]
-                nombre_grupo = pick_col(primera, ["Grupo","Nombre del Grupo","Nombre grupo"]) or f"GRUPO_{idx}"
+                nombre_inicial = pick_col(primera, ["Grupo","Nombre del Grupo","Nombre grupo"]) or f"GRUPO_{idx}"
 
+                # Permitir editar el nombre del grupo antes de generar el convenio
                 st.divider()
+                nombre_grupo = st.text_input(f"Nombre del Grupo (Grupo {idx})", value=nombre_inicial, key=f"grupo_nombre_{idx}")
                 st.markdown(f"### 🧾 Grupo {idx}: **{nombre_grupo}** ({ini} → {fin})")
                 st.dataframe(grupo_df, hide_index=True, use_container_width=True)
 
