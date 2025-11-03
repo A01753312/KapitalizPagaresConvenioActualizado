@@ -178,19 +178,21 @@ def render_docx(path_tpl: Path, context: dict) -> bytes:
 def render_convenio_con_imagenes(path_tpl: Path, context: dict,
                                  img_pagos_path=None,
                                  img_amort_path=None,
-                                 img_control_path=None) -> bytes:
+                                 img_control_path=None,
+                                 max_width_mm: float = 100.0) -> bytes:
     tpl = DocxTemplate(str(path_tpl))
     try:
         tpl.jinja_env.filters['letra_abc'] = letra_abc
     except Exception:
         pass
     ctx = dict(context)
+    # Insert images with a smaller default width (configurable via max_width_mm)
     if img_pagos_path:
-        ctx["imagen_tabla_pagos"] = InlineImage(tpl, img_pagos_path, width=Mm(160))
+        ctx["imagen_tabla_pagos"] = InlineImage(tpl, img_pagos_path, width=Mm(max_width_mm))
     if img_amort_path:
-        ctx["imagen_tabla_amort"] = InlineImage(tpl, img_amort_path, width=Mm(160))
+        ctx["imagen_tabla_amort"] = InlineImage(tpl, img_amort_path, width=Mm(max_width_mm))
     if img_control_path:
-        ctx["imagen_control_pagos"] = InlineImage(tpl, img_control_path, width=Mm(160))
+        ctx["imagen_control_pagos"] = InlineImage(tpl, img_control_path, width=Mm(max_width_mm))
     with tempfile.TemporaryDirectory() as td:
         out_path = Path(td) / "out.docx"
         tpl.render(ctx)
