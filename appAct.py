@@ -598,6 +598,12 @@ with tab2:
 
             gen_pdf_conv = st.checkbox(f"📄 Generar PDF (grupo {nombre_grupo})", value=False, key=f"pdf_conv_{gidx}")
 
+            # Imágenes anexas para el convenio (se insertarán en la plantilla)
+            st.markdown("### 📎 Archivos adicionales (imágenes)")
+            tabla_pagos = st.file_uploader("Tabla de pagos concentrada (imagen)", type=["png","jpg","jpeg"], key=f"pagos_{gidx}")
+            tabla_amort = st.file_uploader("Tabla de amortización (imagen)", type=["png","jpg","jpeg"], key=f"amort_{gidx}")
+            control_pagos = st.file_uploader("Control de pagos (imagen)", type=["png","jpg","jpeg"], key=f"control_{gidx}")
+
             if st.button(f"🚀 Generar Convenio y Pagarés (Grupo {nombre_grupo})", key=f"btn_generar_grupo_{gidx}"):
                 with st.spinner(f"Generando documentos para {nombre_grupo}..."):
                     try:
@@ -632,9 +638,24 @@ with tab2:
                             st.error("❌ No se encontró la plantilla del convenio grupal.")
                             st.stop()
 
-                        docx_conv_bytes = render_convenio_con_imagenes(tpl_conv, ctx_conv)
-                        conv_name = f"CONVENIO_{safe_name(nombre_grupo)}.docx"
-                        (tmp_dir / conv_name).write_bytes(docx_conv_bytes)
+                        # Escribir imágenes temporales y pasarlas al renderer
+                        with tempfile.TemporaryDirectory() as td_imgs:
+                            p1=p2=p3=None
+                            if tabla_pagos is not None:
+                                p1 = str(Path(td_imgs)/("pagos"+Path(tabla_pagos.name).suffix)); Path(p1).write_bytes(tabla_pagos.getvalue())
+                            if tabla_amort is not None:
+                                p2 = str(Path(td_imgs)/("amort"+Path(tabla_amort.name).suffix)); Path(p2).write_bytes(tabla_amort.getvalue())
+                            if control_pagos is not None:
+                                p3 = str(Path(td_imgs)/("control"+Path(control_pagos.name).suffix)); Path(p3).write_bytes(control_pagos.getvalue())
+
+                            docx_conv_bytes = render_convenio_con_imagenes(tpl_conv, ctx_conv, img_pagos_path=p1, img_amort_path=p2, img_control_path=p3)
+                            conv_name = f"CONVENIO_{safe_name(nombre_grupo)}.docx"
+                            (tmp_dir / conv_name).write_bytes(docx_conv_bytes)
+
+                            if gen_pdf_conv:
+                                pdf_conv_bytes = docx_bytes_to_pdf_bytes(docx_conv_bytes)
+                                if pdf_conv_bytes:
+                                    (tmp_dir / Path(conv_name).with_suffix(".pdf")).write_bytes(pdf_conv_bytes)
 
                         if gen_pdf_conv:
                             pdf_conv_bytes = docx_bytes_to_pdf_bytes(docx_conv_bytes)
